@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Forecast & Temperature Prediction System</title>
+    <!-- 100% Offline Local CSS (No external CDN or Google Fonts required) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <!-- Header / Navbar -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="nav-logo">🌤️</span>
+                <div class="nav-title-group">
+                    <h1>Weather Prediction System</h1>
+                    <span class="nav-sub">Bengaluru Hourly Weather Forecast Model (XGBoost)</span>
+                </div>
+            </div>
+            
+            <div class="nav-actions">
+                <span class="badge-status">● Offline Local Mode (R²: 99.4%)</span>
+                <div class="unit-toggle" id="unit-toggle">
+                    <button type="button" class="unit-btn active" id="btn-celsius">°C</button>
+                    <button type="button" class="unit-btn" id="btn-fahrenheit">°F</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-wrapper">
+
+        <!-- Top Scenario Bar -->
+        <div class="scenario-bar">
+            <span class="scenario-label">Quick Scenarios:</span>
+            <div class="scenario-buttons">
+                <button type="button" class="btn-preset active" data-preset="summer_heat">☀️ Summer Afternoon</button>
+                <button type="button" class="btn-preset" data-preset="monsoon_storm">🌧️ Monsoon Rain</button>
+                <button type="button" class="btn-preset" data-preset="winter_dawn">❄️ Winter Morning</button>
+                <button type="button" class="btn-preset" data-preset="pleasant_evening">🍃 Pleasant Evening</button>
+                <button type="button" class="btn-preset" data-preset="post_monsoon">🌤️ Post-Monsoon</button>
+                <button type="button" class="btn-preset btn-sample" id="btn-random-sample">🎲 Load Real Historical Data</button>
+            </div>
+        </div>
+
+        <!-- Historical Validation Notice (Hidden by default) -->
+        <div class="alert-box" id="historical-banner" style="display: none;">
+            <div class="alert-content">
+                <strong>Historical Benchmark Comparison:</strong>
+                <span>Timestamp: <span id="hist-time">2024-05-12 14:00</span></span> | 
+                <span>Actual Recorded Temp: <strong id="hist-actual">32.40 °C</strong></span> | 
+                <span>Prediction Error: <strong id="hist-error" class="text-success">0.12 °C</strong></span>
+            </div>
+            <button type="button" class="alert-close" onclick="document.getElementById('historical-banner').style.display='none'">✕</button>
+        </div>
+
+        <!-- 2-Column Content Grid -->
+        <div class="page-grid">
+
+            <!-- LEFT COLUMN: Standard Weather Input Form -->
+            <div class="card form-card">
+                <div class="card-header">
+                    <h2>Input Weather Parameters</h2>
+                    <p>Enter meteorological parameters or adjust the sliders below to calculate the predicted temperature.</p>
+                </div>
+
+                <form id="weather-form" class="form-body">
+                    
+                    <!-- Section 1: Time & Date -->
+                    <div class="form-section">
+                        <h3 class="section-title">1. Time & Calendar</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group col-6">
+                                <label for="input-season">Season</label>
+                                <select id="input-season" name="season" class="form-control">
+                                    <option value="Summer" selected>Summer (Mar - May)</option>
+                                    <option value="Monsoon">Monsoon (Jun - Sep)</option>
+                                    <option value="Post_Monsoon">Post-Monsoon (Oct - Nov)</option>
+                                    <option value="Winter">Winter (Dec - Feb)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group col-6">
+                                <label for="input-day-name">Day of Week</label>
+                                <select id="input-day-name" name="day_name" class="form-control">
+                                    <option value="Monday" selected>Monday</option>
+                                    <option value="Tuesday">Tuesday</option>
+                                    <option value="Wednesday">Wednesday</option>
+                                    <option value="Thursday">Thursday</option>
+                                    <option value="Friday">Friday</option>
+                                    <option value="Saturday">Saturday</option>
+                                    <option value="Sunday">Sunday</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-hour">Hour of the Day (0 - 23)</label>
+                                <span class="val-display" id="val-hour">14:00 (2 PM)</span>
+                            </div>
+                            <input type="range" id="input-hour" name="hour" min="0" max="23" value="14" step="1" class="range-slider">
+                        </div>
+
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-month">Month (1 - 12)</label>
+                                <span class="val-display" id="val-month">May (Month 5)</span>
+                            </div>
+                            <input type="range" id="input-month" name="month" min="1" max="12" value="5" step="1" class="range-slider">
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Meteorological Inputs -->
+                    <div class="form-section">
+                        <h3 class="section-title">2. Atmospheric Conditions</h3>
+
+                        <!-- Prior Temperature 1h ago -->
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-temp-lag">Temperature 1 Hour Ago (°C)</label>
+                                <div class="input-with-slider">
+                                    <input type="number" id="num-temp-lag" value="32.5" step="0.5" min="5" max="45" class="num-box">
+                                    <span class="unit-text">°C</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-temp-lag" name="temp_1h_ago" min="5" max="45" value="32.5" step="0.5" class="range-slider">
+                        </div>
+
+                        <!-- Relative Humidity -->
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-humidity">Relative Humidity (%)</label>
+                                <div class="input-with-slider">
+                                    <input type="number" id="num-humidity" value="38.0" step="1" min="5" max="100" class="num-box">
+                                    <span class="unit-text">%</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-humidity" name="relative_humidity_2m" min="5" max="100" value="38.0" step="1" class="range-slider">
+                        </div>
+
+                        <!-- Surface Pressure -->
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-pressure">Surface Pressure (hPa)</label>
+                                <div class="input-with-slider">
+                                    <input type="number" id="num-pressure" value="912.0" step="0.5" min="890" max="935" class="num-box">
+                                    <span class="unit-text">hPa</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-pressure" name="surface_pressure" min="890" max="935" value="912.0" step="0.5" class="range-slider">
+                        </div>
+
+                        <!-- Wind Speed -->
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-wind">Wind Speed (km/h)</label>
+                                <div class="input-with-slider">
+                                    <input type="number" id="num-wind" value="14.0" step="0.5" min="0" max="60" class="num-box">
+                                    <span class="unit-text">km/h</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-wind" name="wind_speed_10m" min="0" max="60" value="14.0" step="0.5" class="range-slider">
+                        </div>
+
+                        <!-- Cloud Cover -->
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-cloud">Cloud Cover (%)</label>
+                                <div class="input-with-slider">
+                                    <input type="number" id="num-cloud" value="15" step="5" min="0" max="100" class="num-box">
+                                    <span class="unit-text">%</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-cloud" name="cloud_cover" min="0" max="100" value="15" step="5" class="range-slider">
+                        </div>
+
+                        <!-- Precipitation -->
+                        <div class="form-group">
+                            <div class="label-with-value">
+                                <label for="input-rain">Precipitation / Rain (mm)</label>
+                                <div class="input-with-slider">
+                                    <input type="number" id="num-rain" value="0.0" step="0.5" min="0" max="50" class="num-box">
+                                    <span class="unit-text">mm</span>
+                                </div>
+                            </div>
+                            <input type="range" id="input-rain" name="precipitation" min="0" max="50" value="0.0" step="0.5" class="range-slider">
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="btn-run-forecast">Calculate Forecast</button>
+                        <button type="button" class="btn btn-secondary" id="btn-reset-inputs">Reset Defaults</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- RIGHT COLUMN: Standard Weather Forecast Results -->
+            <div class="results-column">
+
+                <!-- Main Current Weather Card -->
+                <div class="card weather-hero-card">
+                    <div class="weather-hero-top">
+                        <div class="hero-left">
+                            <span class="location-tag">Forecast Location: Bengaluru, India</span>
+                            <div class="hero-temp-row">
+                                <span class="weather-main-icon" id="hero-icon">☀️</span>
+                                <div class="hero-temp-val">
+                                    <span id="hero-temp-val">32.8</span>
+                                    <span class="unit-symbol" id="hero-unit-label">°C</span>
+                                </div>
+                            </div>
+                            <div class="weather-status-text" id="hero-badge">Warm & Comfortable</div>
+                        </div>
+
+                        <div class="hero-right">
+                            <div class="hero-stat-box">
+                                <span class="stat-label">Feels Like</span>
+                                <span class="stat-value" id="hero-feels-like">33.2 °C</span>
+                            </div>
+                            <div class="hero-stat-box">
+                                <span class="stat-label">Target Variable</span>
+                                <span class="stat-value">2m Air Temp</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="weather-hero-footer">
+                        <p class="forecast-advice" id="hero-advice">Warm afternoon conditions. Stay hydrated and avoid prolonged direct sun.</p>
+                    </div>
+                </div>
+
+                <!-- 4 Weather Metric Boxes -->
+                <div class="metrics-row">
+                    <div class="metric-box">
+                        <span class="metric-icon-small">💧</span>
+                        <div class="metric-details">
+                            <span class="metric-title">Humidity</span>
+                            <span class="metric-main" id="metric-humidity">38.0%</span>
+                            <span class="metric-desc" id="metric-humidity-sub">Moderate</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-box">
+                        <span class="metric-icon-small">🧭</span>
+                        <div class="metric-details">
+                            <span class="metric-title">Pressure</span>
+                            <span class="metric-main" id="metric-pressure">912.0 hPa</span>
+                            <span class="metric-desc">Standard Barometric</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-box">
+                        <span class="metric-icon-small">💨</span>
+                        <div class="metric-details">
+                            <span class="metric-title">Wind Speed</span>
+                            <span class="metric-main" id="metric-wind">14.0 km/h</span>
+                            <span class="metric-desc" id="metric-wind-sub">Moderate Breeze</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-box">
+                        <span class="metric-icon-small">☁️</span>
+                        <div class="metric-details">
+                            <span class="metric-title">Cloud & Rain</span>
+                            <span class="metric-main" id="metric-cloud">15% • 0mm</span>
+                            <span class="metric-desc" id="metric-rain-sub">Clear Sky</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 24-Hour Diurnal Forecast Chart Card (Pure Offline HTML5 Canvas) -->
+                <div class="card chart-card">
+                    <div class="card-header-simple">
+                        <h3>24-Hour Temperature Forecast (Diurnal Simulation)</h3>
+                        <span class="chart-subtitle">Projected hourly air temperature curve based on the current weather momentum</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="diurnalCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Model Information Card -->
+                <div class="card info-card">
+                    <h3>Model Verification & Accuracy</h3>
+                    <table class="table-metrics">
+                        <thead>
+                            <tr>
+                                <th>Algorithm</th>
+                                <th>Test R² Score</th>
+                                <th>Test RMSE</th>
+                                <th>Test MAE</th>
+                                <th>Training Dataset</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>XGBoost Regressor</strong></td>
+                                <td><span class="tag-success">99.41%</span></td>
+                                <td>0.326 °C</td>
+                                <td>0.225 °C</td>
+                                <td>225,000+ hourly readings (2001 - 2026)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <footer class="page-footer">
+            <p>© 2026 Weather Prediction Project • Runs 100% Offline Locally on Localhost</p>
+        </footer>
+
+    </div>
+
+    <!-- 100% Offline Local Script -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
